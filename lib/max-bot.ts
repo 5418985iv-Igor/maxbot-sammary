@@ -314,7 +314,7 @@ export class MaxBotService {
     this.addLog('info', 'Журнал логов очищен.');
   }
 
-  private addLog(
+  public addLog(
     level: LogEntry['level'],
     message: string,
     rawJson?: unknown
