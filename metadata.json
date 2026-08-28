@@ -1,0 +1,6 @@
+{
+  "name": "MAX Bot Long Polling Server",
+  "description": "MAX Bot API server with Webhook endpoint /webhook/max, Long Polling, chat history extraction, and OpenAI summary generator.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

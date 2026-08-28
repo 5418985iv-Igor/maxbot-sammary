@@ -1,11 +1,82 @@
-<div align="center">
+# MAX Bot API Long Polling Server
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+Минимальный серверный проект для тестирования и отладки **MAX Bot API** через Long Polling (`GET /updates`).
 
-  <h1>Built with AI Studio</h2>
+## Стек и возможности
+- Официальный endpoint: `https://platform-api2.max.ru`
+- Авторизация через заголовок `Authorization: <token>` (из переменной окружения `MAX_BOT_TOKEN`)
+- Проверка токена и профиля бота через `GET /me` (вывод ID, имени и username бота)
+- Потоковый Long Polling через `GET /updates`
+- Сохранение и передача параметра `marker` между запросами
+- Обработка и фильтрация событий `message_created` с выводом:
+  - Тип события
+  - `chat_id`
+  - Данные отправителя (`sender`)
+  - Текст сообщения
+  - Полный исходный JSON
+- Автоматический retry c экспоненциальной задержкой при сетевых сбоях и ошибках API (без падения приложения)
+- Два режима запуска:
+  1. **Standalone Node.js / TypeScript CLI демон** (`npm run bot` или `npx tsx bot.ts`)
+  2. **Web-сервер с консолью просмотра логов в реальном времени** (`npm run dev`)
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+---
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+## Структура файлов
 
-</div>
+```
+.
+├── bot.ts                    # Автономный Node.js скрипт для запуска бота в фоне/терминале
+├── lib/
+│   └── max-bot.ts            # Сервис подключения к MAX Bot API (Long Polling, GET /me, логирование)
+├── app/
+│   ├── api/
+│   │   └── bot/
+│   │       ├── status/route.ts   # API статус подключения и данные бота
+│   │       ├── logs/route.ts     # API получения серверных логов
+│   │       └── control/route.ts  # API управления ботом (старт / стоп / проверка / очистка)
+│   ├── globals.css           # Базовые стили
+│   ├── layout.tsx            # Корневой layout
+│   └── page.tsx              # Консоль для просмотра логов в реальном времени
+├── package.json              # Зависимости и npm-скрипты
+├── tsconfig.json             # Настройки TypeScript
+└── .env.example              # Пример переменных окружения
+```
+
+---
+
+## Инструкция по локальному запуску
+
+### 1. Установка зависимостей
+```bash
+npm install
+```
+
+### 2. Настройка токена бота
+Создайте файл `.env` в корне проекта (или скопируйте `.env.example`):
+```bash
+cp .env.example .env
+```
+
+Заполните `MAX_BOT_TOKEN` вашим токеном:
+```env
+MAX_BOT_TOKEN="ВАШ_ТОКЕН_MAX_БОТА"
+```
+
+### 3. Варианты запуска
+
+#### Вариант A: Автономный CLI-бот (Node.js)
+Запуск только серверного демона без браузера:
+```bash
+npm run bot
+```
+или с передачей переменной напрямую:
+```bash
+MAX_BOT_TOKEN="ВАШ_ТОКЕН" npm run bot
+```
+
+#### Вариант B: Сервер с веб-экраном логов
+Запуск веб-сервера:
+```bash
+npm run dev
+```
+Откройте в браузере `http://localhost:3000`. На странице отображается статус подключения к MAX API и выводятся логи Long Polling в реальном времени.
