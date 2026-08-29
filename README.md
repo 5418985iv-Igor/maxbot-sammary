@@ -100,6 +100,8 @@ docker compose up -d --build
 ```
 
 3. Настройка Nginx на сервере для пути `/max`:
+> **Важно**: в директиве `proxy_pass http://127.0.0.1:3001;` **не должно быть слэша `/` на конце после 3001**, чтобы Nginx передавал полный путь `/max/...` в Next.js:
+
 ```nginx
 location /max {
     proxy_pass http://127.0.0.1:3001;
