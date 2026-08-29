@@ -1,0 +1,15 @@
+services:
+  maxbot-sammary:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: maxbot-sammary
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:3001:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOSTNAME=0.0.0.0

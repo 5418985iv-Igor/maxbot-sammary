@@ -1,6 +1,12 @@
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
+  logging: {
+    incomingRequests: false,
+    fetches: {
+      fullUrl: false,
+    },
+  },
   reactStrictMode: true,
   eslint: {
     ignoreDuringBuilds: true,
@@ -20,6 +26,7 @@ const nextConfig: NextConfig = {
     ],
   },
   output: 'standalone',
+  serverExternalPackages: ['undici', 'openai'],
   transpilePackages: ['motion'],
   webpack: (config, {dev}) => {
     // HMR is disabled in AI Studio via DISABLE_HMR env var.
