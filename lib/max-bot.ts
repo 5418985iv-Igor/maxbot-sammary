@@ -1,5 +1,9 @@
-import { fetch as undiciFetch, Agent as UndiciAgent } from 'undici';
 import OpenAI from 'openai';
+
+// Allow TLS connections with Russian Trusted Root CA certificates used by platform-api2.max.ru
+if (typeof process !== 'undefined' && process.env && !process.env.NODE_TLS_REJECT_UNAUTHORIZED) {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+}
 
 export const BOT_USER_ID = 232063193;
 
@@ -271,18 +275,9 @@ export class MaxBotService {
   private logs: LogEntry[] = [];
   private readonly maxLogs = 500;
   private pollAbortController: AbortController | null = null;
-  private readonly httpsAgent: UndiciAgent;
 
   private constructor() {
     this.token = process.env.MAX_BOT_TOKEN || null;
-    // MAX API utilizes Russian Trusted Root CA certificates
-    this.httpsAgent = new UndiciAgent({
-      connect: {
-        rejectUnauthorized: false,
-      },
-      headersTimeout: 65000,
-      bodyTimeout: 65000,
-    });
   }
 
   public static getInstance(): MaxBotService {
@@ -377,10 +372,9 @@ export class MaxBotService {
     const url = `${this.baseUrl}/me`;
     let response;
     try {
-      response = await undiciFetch(url, {
+      response = await fetch(url, {
         method: 'GET',
         headers,
-        dispatcher: this.httpsAgent,
       });
     } catch (fetchErr: unknown) {
       const cause =
@@ -438,10 +432,9 @@ export class MaxBotService {
       'User-Agent': 'MaxBot-LongPolling-Client/1.0',
     };
 
-    const response = await undiciFetch(url, {
+    const response = await fetch(url, {
       method: 'GET',
       headers,
-      dispatcher: this.httpsAgent,
     });
 
     if (!response.ok) {
@@ -766,11 +759,10 @@ export class MaxBotService {
     };
 
     try {
-      const response = await undiciFetch(url, {
+      const response = await fetch(url, {
         method: 'POST',
         headers,
         body: JSON.stringify({ text: summary }),
-        dispatcher: this.httpsAgent,
       });
 
       const responseText = await response.text().catch(() => '');
@@ -937,10 +929,9 @@ export class MaxBotService {
           'User-Agent': 'MaxBot-LongPolling-Client/1.0',
         };
 
-        const response = await undiciFetch(endpoint, {
+        const response = await fetch(endpoint, {
           method: 'GET',
           headers,
-          dispatcher: this.httpsAgent,
           signal: this.pollAbortController?.signal,
         });
 

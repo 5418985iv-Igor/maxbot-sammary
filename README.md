@@ -80,3 +80,27 @@ MAX_BOT_TOKEN="ВАШ_ТОКЕН" npm run bot
 npm run dev
 ```
 Откройте в браузере `http://localhost:3000`. На странице отображается статус подключения к MAX API и выводятся логи Long Polling в реальном времени.
+
+---
+
+## Production развертывание в Docker на VPS
+
+1. Склонируйте репозиторий и создайте `.env`:
+```bash
+cp .env.example .env
+# Заполните MAX_BOT_TOKEN, MAX_WEBHOOK_SECRET, OPENAI_API_KEY
+```
+
+2. Сборка и запуск контейнера:
+```bash
+docker compose up -d --build
+```
+
+3. Проверка статуса сервиса:
+```bash
+# Проверка логов контейнера
+docker compose logs -f maxbot-sammary
+
+# Проверка API статуса бота
+curl http://127.0.0.1:3001/api/bot/status
+```
