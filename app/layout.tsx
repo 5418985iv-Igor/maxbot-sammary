@@ -2,17 +2,17 @@ import type {Metadata} from 'next';
 import './globals.css'; // Global styles
 
 export const metadata: Metadata = {
-  title: 'My Google AI Studio App',
-  description: 'An application built with Google AI Studio.',
+  title: 'MAX Bot Long Polling Server',
+  description: 'Minimal server application for MAX Bot API with Long Polling, chat history extraction, and OpenAI gpt-5.4-mini summary generator.',
   openGraph: {
-    title: 'My Google AI Studio App',
-    description: 'An application built with Google AI Studio.',
+    title: 'MAX Bot Long Polling Server',
+    description: 'Minimal server application for MAX Bot API with Long Polling, chat history extraction, and OpenAI gpt-5.4-mini summary generator.',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'My Google AI Studio App',
-    description: 'An application built with Google AI Studio.',
+    title: 'MAX Bot Long Polling Server',
+    description: 'Minimal server application for MAX Bot API with Long Polling, chat history extraction, and OpenAI gpt-5.4-mini summary generator.',
   },
 };
 
