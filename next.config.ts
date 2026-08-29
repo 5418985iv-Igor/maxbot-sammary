@@ -1,13 +1,6 @@
 import type {NextConfig} from 'next';
 
-const rawBasePath = process.env.NEXT_PUBLIC_BASE_PATH || process.env.BASE_PATH || '';
-const cleanBasePath = rawBasePath
-  ? (rawBasePath.startsWith('/') ? rawBasePath : `/${rawBasePath}`).replace(/\/+$/, '')
-  : undefined;
-
 const nextConfig: NextConfig = {
-  basePath: cleanBasePath,
-  assetPrefix: cleanBasePath,
   reactStrictMode: true,
   eslint: {
     ignoreDuringBuilds: true,

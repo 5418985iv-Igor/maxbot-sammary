@@ -25,27 +25,6 @@ interface BotStatus {
   logCount: number;
 }
 
-// Helper for dynamic API routing under custom basePath or proxy subpaths (e.g. /max/)
-function getApiUrl(path: string): string {
-  const cleanPath = path.startsWith('/') ? path : `/${path}`;
-  const envBase = process.env.NEXT_PUBLIC_BASE_PATH || '';
-  if (envBase) {
-    const cleanBase = envBase.startsWith('/')
-      ? envBase.replace(/\/+$/, '')
-      : `/${envBase.replace(/\/+$/, '')}`;
-    return `${cleanBase}${cleanPath}`;
-  }
-
-  if (typeof window !== 'undefined') {
-    const pathname = window.location.pathname;
-    if (pathname.startsWith('/max')) {
-      return `/max${cleanPath}`;
-    }
-  }
-
-  return cleanPath;
-}
-
 export default function LogsPage() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [status, setStatus] = useState<BotStatus | null>(null);
@@ -58,8 +37,8 @@ export default function LogsPage() {
     const fetchStatusAndLogs = async () => {
       try {
         const [statusRes, logsRes] = await Promise.all([
-          fetch(getApiUrl('/api/bot/status')),
-          fetch(getApiUrl('/api/bot/logs')),
+          fetch('/api/bot/status'),
+          fetch('/api/bot/logs'),
         ]);
 
         if (statusRes.ok) {
@@ -89,7 +68,7 @@ export default function LogsPage() {
   const handleAction = async (action: 'start' | 'stop' | 'clear' | 'check') => {
     setLoading(true);
     try {
-      const res = await fetch(getApiUrl('/api/bot/control'), {
+      const res = await fetch('/api/bot/control', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action }),
@@ -100,8 +79,8 @@ export default function LogsPage() {
       }
       // Refresh immediately
       const [statusRes, logsRes] = await Promise.all([
-        fetch(getApiUrl('/api/bot/status')),
-        fetch(getApiUrl('/api/bot/logs')),
+        fetch('/api/bot/status'),
+        fetch('/api/bot/logs'),
       ]);
       if (statusRes.ok) setStatus(await statusRes.json());
       if (logsRes.ok) setLogs((await logsRes.json()).logs || []);
