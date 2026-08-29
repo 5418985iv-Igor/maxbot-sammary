@@ -3,6 +3,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        - BASE_PATH=${BASE_PATH:-/max}
+        - NEXT_PUBLIC_BASE_PATH=${NEXT_PUBLIC_BASE_PATH:-/max}
     container_name: maxbot-sammary
     restart: unless-stopped
     env_file:
@@ -13,3 +16,5 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - HOSTNAME=0.0.0.0
+      - BASE_PATH=${BASE_PATH:-/max}
+      - NEXT_PUBLIC_BASE_PATH=${NEXT_PUBLIC_BASE_PATH:-/max}

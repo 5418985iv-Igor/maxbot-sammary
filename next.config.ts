@@ -1,6 +1,10 @@
 import type {NextConfig} from 'next';
 
+const rawBasePath = process.env.BASE_PATH || process.env.NEXT_PUBLIC_BASE_PATH || (process.env.NODE_ENV === 'production' ? '/max' : '');
+const basePath = rawBasePath && rawBasePath !== '/' ? (rawBasePath.startsWith('/') ? rawBasePath.replace(/\/$/, '') : `/${rawBasePath.replace(/\/$/, '')}`) : undefined;
+
 const nextConfig: NextConfig = {
+  ...(basePath ? { basePath, assetPrefix: basePath } : {}),
   logging: {
     incomingRequests: false,
     fetches: {

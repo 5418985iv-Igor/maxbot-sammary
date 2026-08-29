@@ -83,12 +83,15 @@ npm run dev
 
 ---
 
-## Production развертывание в Docker на VPS
+## Production развертывание в Docker на VPS (для https://vivonline.ru/max)
 
 1. Склонируйте репозиторий и создайте `.env`:
 ```bash
 cp .env.example .env
 # Заполните MAX_BOT_TOKEN, MAX_WEBHOOK_SECRET, OPENAI_API_KEY
+# Для работы по адресу https://vivonline.ru/max задайте BASE_PATH:
+BASE_PATH=/max
+NEXT_PUBLIC_BASE_PATH=/max
 ```
 
 2. Сборка и запуск контейнера:
@@ -96,11 +99,25 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-3. Проверка статуса сервиса:
+3. Настройка Nginx на сервере для пути `/max`:
+```nginx
+location /max {
+    proxy_pass http://127.0.0.1:3001;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+4. Проверка статуса сервиса:
 ```bash
 # Проверка логов контейнера
 docker compose logs -f maxbot-sammary
 
 # Проверка API статуса бота
-curl http://127.0.0.1:3001/api/bot/status
+curl http://127.0.0.1:3001/max/api/bot/status
 ```

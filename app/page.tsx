@@ -25,6 +25,19 @@ interface BotStatus {
   logCount: number;
 }
 
+function getApiUrl(path: string): string {
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  const envBase = process.env.NEXT_PUBLIC_BASE_PATH || process.env.BASE_PATH;
+  if (envBase && envBase !== '/') {
+    const cleanBase = envBase.startsWith('/') ? envBase.replace(/\/$/, '') : `/${envBase.replace(/\/$/, '')}`;
+    return `${cleanBase}${cleanPath}`;
+  }
+  if (typeof window !== 'undefined' && window.location.pathname.startsWith('/max')) {
+    return `/max${cleanPath}`;
+  }
+  return cleanPath;
+}
+
 export default function LogsPage() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [status, setStatus] = useState<BotStatus | null>(null);
@@ -37,8 +50,8 @@ export default function LogsPage() {
     const fetchStatusAndLogs = async () => {
       try {
         const [statusRes, logsRes] = await Promise.all([
-          fetch('/api/bot/status'),
-          fetch('/api/bot/logs'),
+          fetch(getApiUrl('/api/bot/status')),
+          fetch(getApiUrl('/api/bot/logs')),
         ]);
 
         if (statusRes.ok) {
@@ -68,7 +81,7 @@ export default function LogsPage() {
   const handleAction = async (action: 'start' | 'stop' | 'clear' | 'check') => {
     setLoading(true);
     try {
-      const res = await fetch('/api/bot/control', {
+      const res = await fetch(getApiUrl('/api/bot/control'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action }),
@@ -79,8 +92,8 @@ export default function LogsPage() {
       }
       // Refresh immediately
       const [statusRes, logsRes] = await Promise.all([
-        fetch('/api/bot/status'),
-        fetch('/api/bot/logs'),
+        fetch(getApiUrl('/api/bot/status')),
+        fetch(getApiUrl('/api/bot/logs')),
       ]);
       if (statusRes.ok) setStatus(await statusRes.json());
       if (logsRes.ok) setLogs((await logsRes.json()).logs || []);
