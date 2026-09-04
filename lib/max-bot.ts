@@ -90,6 +90,13 @@ export interface LogEntry {
   rawJson?: string;
 }
 
+export interface MaxSubscriptionItem {
+  url: string;
+  time: number;
+  update_types?: string[];
+  [key: string]: unknown;
+}
+
 export interface SummaryCommandInfo {
   isCommand: boolean;
   requestedCount: number;
@@ -272,6 +279,7 @@ export class MaxBotService {
   private marker: number | string | null = null;
   private isRunning: boolean = false;
   private botInfo: BotInfo | null = null;
+  private webhookSubscriptions: MaxSubscriptionItem[] = [];
   private logs: LogEntry[] = [];
   private readonly maxLogs = 500;
   private pollAbortController: AbortController | null = null;
@@ -302,6 +310,7 @@ export class MaxBotService {
       botInfo: this.botInfo,
       marker: this.marker,
       logCount: this.logs.length,
+      subscriptions: this.webhookSubscriptions,
     };
   }
 
@@ -413,6 +422,262 @@ export class MaxBotService {
     );
 
     return data;
+  }
+
+  /**
+   * Fetch active webhook subscriptions from MAX API (GET /subscriptions)
+   */
+  public async checkSubscriptions(): Promise<MaxSubscriptionItem[]> {
+    const token = this.token || process.env.MAX_BOT_TOKEN;
+    if (!token || !token.trim()) {
+      const msg = 'MAX_BOT_TOKEN не задан. Укажите токен в переменных окружения.';
+      this.addLog('error', msg);
+      throw new Error(msg);
+    }
+
+    this.addLog('info', 'Запрос списка подписок Webhook в MAX API (GET /subscriptions)...');
+    const url = `${this.baseUrl}/subscriptions`;
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          Authorization: token.trim(),
+          'User-Agent': 'MaxBot-Webhook-Manager/1.0',
+        },
+      });
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      this.addLog('error', `Сетевой сбой при запросе GET /subscriptions: ${errMsg}`);
+      throw new Error(errMsg);
+    }
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '');
+      const msg = `Ошибка MAX API при GET /subscriptions (HTTP ${response.status} ${response.statusText}): ${errText}`;
+      this.addLog('error', msg);
+      throw new Error(msg);
+    }
+
+    const data = (await response.json()) as { subscriptions?: MaxSubscriptionItem[] };
+    const subs: MaxSubscriptionItem[] = Array.isArray(data.subscriptions) ? data.subscriptions : [];
+    this.webhookSubscriptions = subs;
+
+    if (subs.length === 0) {
+      this.addLog(
+        'warn',
+        '[Webhook MAX] Активных подписок Webhook в MAX API не найдено. Нажмите «Связать Webhook», чтобы бот получал события в реальном времени.'
+      );
+    } else {
+      const lines = subs.map(
+        (s, idx) =>
+          `  ${idx + 1}. URL: ${s.url} | События: ${(s.update_types || []).join(', ') || 'все'} | Зарегистрирован: ${new Date(
+            s.time
+          ).toLocaleString('ru-RU')}`
+      );
+      this.addLog(
+        'success',
+        `[Webhook MAX] Найдено активных подписок в MAX API (${subs.length}):\n${lines.join('\n')}`
+      );
+    }
+
+    return subs;
+  }
+
+  /**
+   * Register or update webhook subscription in MAX API (POST /subscriptions)
+   */
+  public async registerWebhook(
+    targetUrl?: string,
+    secret?: string
+  ): Promise<Record<string, unknown>> {
+    const token = this.token || process.env.MAX_BOT_TOKEN;
+    if (!token || !token.trim()) {
+      const msg = 'MAX_BOT_TOKEN не задан';
+      this.addLog('error', msg);
+      throw new Error(msg);
+    }
+
+    const webhookUrl =
+      targetUrl || process.env.MAX_WEBHOOK_URL || 'https://vivonline.ru/max/webhook/max';
+    const secretToUse =
+      secret !== undefined ? secret : process.env.MAX_WEBHOOK_SECRET || undefined;
+
+    this.addLog(
+      'info',
+      `Регистрация подписки Webhook в MAX API (POST /subscriptions)... URL: ${webhookUrl}`
+    );
+
+    const body: Record<string, unknown> = {
+      url: webhookUrl,
+      update_types: ['message_created'],
+    };
+    if (secretToUse && secretToUse.trim()) {
+      body.secret = secretToUse.trim();
+    }
+
+    let response: Response;
+    try {
+      response = await fetch(`${this.baseUrl}/subscriptions`, {
+        method: 'POST',
+        headers: {
+          Authorization: token.trim(),
+          'Content-Type': 'application/json',
+          'User-Agent': 'MaxBot-Webhook-Manager/1.0',
+        },
+        body: JSON.stringify(body),
+      });
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      this.addLog('error', `Сетевой сбой при регистрации Webhook: ${errMsg}`);
+      throw new Error(errMsg);
+    }
+
+    const responseText = await response.text().catch(() => '');
+    if (!response.ok) {
+      const msg = `Ошибка MAX API при регистрации Webhook (HTTP ${response.status} ${response.statusText}): ${responseText}`;
+      this.addLog('error', msg);
+      throw new Error(msg);
+    }
+
+    let parsed: Record<string, unknown> = {};
+    try {
+      parsed = JSON.parse(responseText);
+    } catch {
+      parsed = { raw: responseText };
+    }
+
+    this.addLog(
+      'success',
+      `[Webhook MAX] Подписка успешно создана в MAX API на адрес: ${webhookUrl}`
+    );
+
+    // Refresh subscriptions list
+    await this.checkSubscriptions().catch(() => {});
+    return parsed;
+  }
+
+  /**
+   * Delete webhook subscription from MAX API (DELETE /subscriptions?url=...)
+   */
+  public async deleteWebhook(targetUrl?: string): Promise<void> {
+    const token = this.token || process.env.MAX_BOT_TOKEN;
+    if (!token || !token.trim()) {
+      const msg = 'MAX_BOT_TOKEN не задан';
+      this.addLog('error', msg);
+      throw new Error(msg);
+    }
+
+    const urlToDelete =
+      targetUrl || process.env.MAX_WEBHOOK_URL || 'https://vivonline.ru/max/webhook/max';
+
+    this.addLog(
+      'info',
+      `Удаление подписки Webhook в MAX API: ${urlToDelete}...`
+    );
+
+    const endpoint = `${this.baseUrl}/subscriptions?url=${encodeURIComponent(urlToDelete)}`;
+    const response = await fetch(endpoint, {
+      method: 'DELETE',
+      headers: {
+        Authorization: token.trim(),
+        'User-Agent': 'MaxBot-Webhook-Manager/1.0',
+      },
+    });
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '');
+      const msg = `Ошибка MAX API при удалении Webhook (HTTP ${response.status}): ${errText}`;
+      this.addLog('error', msg);
+      throw new Error(msg);
+    }
+
+    this.addLog('warn', `[Webhook MAX] Подписка для URL ${urlToDelete} успешно удалена из MAX API.`);
+    await this.checkSubscriptions().catch(() => {});
+  }
+
+  /**
+   * Simulate a test webhook event inside the application
+   */
+  public async simulateTestWebhook(
+    text: string = 'саммари 10',
+    chatId: number | string = -78187846992386,
+    senderName: string = 'Пользователь (Тест UI)'
+  ): Promise<void> {
+    this.addLog(
+      'info',
+      `[Тест Webhook] Запуск имитации входящего вебхука: Chat ID: ${chatId}, Текст: "${text}"`
+    );
+
+    const testUpdate: MaxUpdate = {
+      update_type: 'message_created',
+      timestamp: Date.now(),
+      message: {
+        recipient: { chat_id: chatId },
+        sender: {
+          name: senderName,
+          user_id: 101,
+        },
+        body: {
+          text,
+        },
+      },
+    };
+
+    this.handleUpdate(testUpdate, { isWebhook: true });
+  }
+
+  /**
+   * Sync and import logs from the production server (e.g. vivonline.ru)
+   */
+  public async syncProductionLogs(
+    prodUrl?: string
+  ): Promise<{ count: number }> {
+    const rawUrl = prodUrl || process.env.PROD_URL || 'https://vivonline.ru/max';
+    const baseUrl = rawUrl.replace(/\/+$/, '');
+    const logsUrl = `${baseUrl}/api/bot/logs`;
+
+    this.addLog('info', `Синхронизация логов с боевого сервера: ${logsUrl}...`);
+    try {
+      const res = await fetch(logsUrl, {
+        headers: { 'User-Agent': 'MaxBot-Sync-Client/1.0' },
+      });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status} ${res.statusText}`);
+      }
+      const data = (await res.json()) as { logs?: LogEntry[] };
+      const prodLogs: LogEntry[] = Array.isArray(data.logs) ? data.logs : [];
+
+      if (prodLogs.length === 0) {
+        this.addLog('info', `[Сервер ${baseUrl}] На удаленном сервере журнал логов пуст.`);
+        return { count: 0 };
+      }
+
+      let imported = 0;
+      for (const pl of prodLogs) {
+        const alreadyExists = this.logs.some(
+          (l) => l.timestamp === pl.timestamp && l.message.includes(pl.message)
+        );
+        if (!alreadyExists) {
+          this.logs.push({
+            ...pl,
+            id: `prod-${pl.id || Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            message: `[Сервер vivonline.ru] ${pl.message}`,
+          });
+          imported++;
+        }
+      }
+
+      this.addLog(
+        'success',
+        `[Синхронизация] Получено логов с боевого сервера: ${prodLogs.length}, добавлено новых в журнал: ${imported}.`
+      );
+      return { count: prodLogs.length };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.addLog('error', `Ошибка синхронизации логов с ${logsUrl}: ${msg}`);
+      throw new Error(msg);
+    }
   }
 
   /**
@@ -1005,6 +1270,10 @@ export class MaxBotService {
     update: MaxUpdate,
     options?: { isWebhook?: boolean }
   ): void {
+    if (!this.botInfo && this.token) {
+      this.checkMe().catch(() => {});
+    }
+
     const updateType =
       update.update_type ||
       (update as Record<string, unknown>).event_type ||

@@ -9,38 +9,93 @@ export async function POST(req: NextRequest) {
     req.headers.get('X-Max-Bot-Api-Secret');
   const expectedSecret = process.env.MAX_WEBHOOK_SECRET;
 
-  if (!expectedSecret || !secretHeader || secretHeader !== expectedSecret) {
-    maxBotService.addLog(
-      'warn',
-      '[Webhook MAX] Отклонен запрос: неверный или отсутствующий секрет X-Max-Bot-Api-Secret'
-    );
-    return new NextResponse('Forbidden', { status: 403 });
+  // If secret is set in .env, validate it
+  if (expectedSecret && expectedSecret.trim().length > 0) {
+    if (!secretHeader || secretHeader.trim() !== expectedSecret.trim()) {
+      maxBotService.addLog(
+        'warn',
+        `[Webhook MAX] Отклонен POST-запрос: неверный или отсутствующий заголовок X-Max-Bot-Api-Secret (получен: ${
+          secretHeader ? 'неверный' : 'отсутствует'
+        })`,
+        {
+          url: req.url,
+          receivedHeader: secretHeader ? '[Скрыт]' : null,
+          ip: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown',
+        }
+      );
+      return NextResponse.json(
+        { ok: false, error: 'Forbidden: invalid or missing X-Max-Bot-Api-Secret' },
+        { status: 403 }
+      );
+    }
   }
 
-  let event: Record<string, unknown> = {};
+  let body: unknown = {};
   try {
-    event = await req.json();
+    body = await req.json();
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     maxBotService.addLog(
       'error',
       `[Webhook MAX] Ошибка парсинга JSON тела запроса: ${errorMsg}`
     );
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'Invalid JSON' }, { status: 400 });
   }
 
-  // Delegate incoming update/message_created to existing bot message handler (non-blocking)
-  maxBotService.handleUpdate(event as unknown as MaxUpdate, { isWebhook: true });
+  // Handle single update or multiple updates batch
+  if (Array.isArray(body)) {
+    for (const item of body) {
+      maxBotService.handleUpdate(item as MaxUpdate, { isWebhook: true });
+    }
+  } else if (body && typeof body === 'object') {
+    const obj = body as Record<string, unknown>;
+    if (Array.isArray(obj.updates)) {
+      for (const item of obj.updates) {
+        maxBotService.handleUpdate(item as MaxUpdate, { isWebhook: true });
+      }
+    } else {
+      maxBotService.handleUpdate(obj as unknown as MaxUpdate, { isWebhook: true });
+    }
+  }
 
   return NextResponse.json({ ok: true });
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const hasSecret = Boolean(
+    process.env.MAX_WEBHOOK_SECRET && process.env.MAX_WEBHOOK_SECRET.trim().length > 0
+  );
+
+  maxBotService.addLog(
+    'info',
+    '[Webhook MAX] Получен GET-запрос проверки эндпоинта Webhook (Healthcheck / Ping от клиента)',
+    {
+      url: req.url,
+      ip: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown',
+      userAgent: req.headers.get('user-agent') || 'unknown',
+    }
+  );
+
   return NextResponse.json({
     ok: true,
+    status: 'active',
     endpoint: '/max/webhook/max',
+    alternateEndpoint: '/webhook/max',
     method: 'POST',
     secretHeader: 'X-Max-Bot-Api-Secret',
+    secretConfigured: hasSecret,
+    time: new Date().toISOString(),
+  });
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      Allow: 'GET, POST, OPTIONS, HEAD',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, HEAD',
+      'Access-Control-Allow-Headers': 'Content-Type, X-Max-Bot-Api-Secret',
+    },
   });
 }
 

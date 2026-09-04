@@ -28,6 +28,37 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
+    if (action === 'check_subscriptions') {
+      const subs = await maxBotService.checkSubscriptions();
+      return NextResponse.json({ success: true, subscriptions: subs });
+    }
+
+    if (action === 'register_webhook') {
+      const targetUrl = body.url as string | undefined;
+      const secret = body.secret as string | undefined;
+      const result = await maxBotService.registerWebhook(targetUrl, secret);
+      return NextResponse.json({ success: true, result });
+    }
+
+    if (action === 'delete_webhook') {
+      const targetUrl = body.url as string | undefined;
+      await maxBotService.deleteWebhook(targetUrl);
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === 'test_webhook') {
+      const text = (body.text as string) || 'саммари 10';
+      const chatId = body.chatId || -78187846992386;
+      await maxBotService.simulateTestWebhook(text, chatId);
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === 'sync_production_logs') {
+      const prodUrl = body.prodUrl as string | undefined;
+      const res = await maxBotService.syncProductionLogs(prodUrl);
+      return NextResponse.json({ success: true, count: res.count });
+    }
+
     return NextResponse.json({ error: 'Неизвестное действие' }, { status: 400 });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);

@@ -1,7 +1,16 @@
 import type {NextConfig} from 'next';
 
-const rawBasePath = process.env.BASE_PATH || process.env.NEXT_PUBLIC_BASE_PATH || '/max';
-const basePath = rawBasePath && rawBasePath !== '/' ? (rawBasePath.startsWith('/') ? rawBasePath.replace(/\/$/, '') : `/${rawBasePath.replace(/\/$/, '')}`) : undefined;
+function getBasePath(): string | undefined {
+  const raw = process.env.BASE_PATH || process.env.NEXT_PUBLIC_BASE_PATH || '/max';
+  const cleaned = raw.replace(/^["']+|["']+$/g, '').trim();
+  if (!cleaned || cleaned === '/') {
+    // If empty quotes were passed, keep existing required default '/max'
+    return '/max';
+  }
+  return cleaned.startsWith('/') ? cleaned.replace(/\/+$/, '') : `/${cleaned.replace(/\/+$/, '')}`;
+}
+
+const basePath = getBasePath();
 
 const nextConfig: NextConfig = {
   ...(basePath ? { basePath, assetPrefix: basePath } : {}),
@@ -32,6 +41,31 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   serverExternalPackages: ['openai'],
   transpilePackages: ['motion'],
+  async redirects() {
+    if (basePath && basePath !== '/') {
+      return [
+        {
+          source: '/',
+          destination: basePath,
+          basePath: false,
+          permanent: false,
+        },
+        {
+          source: '/api/:path*',
+          destination: `${basePath}/api/:path*`,
+          basePath: false,
+          permanent: false,
+        },
+        {
+          source: '/webhook/:path*',
+          destination: `${basePath}/webhook/:path*`,
+          basePath: false,
+          permanent: false,
+        },
+      ];
+    }
+    return [];
+  },
   webpack: (config, {dev}) => {
     // HMR is disabled in AI Studio via DISABLE_HMR env var.
     // Do not modifyâfile watching is disabled to prevent flickering during agent edits.

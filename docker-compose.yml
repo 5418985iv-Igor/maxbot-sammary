@@ -19,3 +19,4 @@ services:
       - BASE_PATH=${BASE_PATH:-/max}
       - NEXT_PUBLIC_BASE_PATH=${NEXT_PUBLIC_BASE_PATH:-/max}
       - MAX_WEBHOOK_URL=${MAX_WEBHOOK_URL:-https://vivonline.ru/max/webhook/max}
+      - NODE_TLS_REJECT_UNAUTHORIZED=0

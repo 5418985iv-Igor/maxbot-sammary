@@ -1,7 +1,21 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Terminal, Play, Square, RefreshCw, Trash2, CheckCircle2, AlertTriangle, XCircle, ShieldCheck } from 'lucide-react';
+import {
+  Terminal,
+  Play,
+  Square,
+  RefreshCw,
+  Trash2,
+  CheckCircle2,
+  AlertTriangle,
+  XCircle,
+  ShieldCheck,
+  Radio,
+  Send,
+  ArrowDownToLine,
+  Link2,
+} from 'lucide-react';
 
 interface LogEntry {
   id: string;
@@ -11,12 +25,20 @@ interface LogEntry {
   rawJson?: string;
 }
 
+interface MaxSubscriptionItem {
+  url: string;
+  time: number;
+  update_types?: string[];
+  [key: string]: unknown;
+}
+
 interface BotStatus {
   isRunning: boolean;
   hasToken: boolean;
   hasOpenAiKey?: boolean;
   hasWebhookSecret?: boolean;
   webhookUrl?: string;
+  subscriptions?: MaxSubscriptionItem[];
   botInfo: {
     user_id?: number | string;
     id?: number | string;
@@ -29,15 +51,25 @@ interface BotStatus {
 
 function getApiUrl(path: string): string {
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
-  const envBase = process.env.NEXT_PUBLIC_BASE_PATH || process.env.BASE_PATH;
-  if (envBase && envBase !== '/') {
-    const cleanBase = envBase.startsWith('/') ? envBase.replace(/\/$/, '') : `/${envBase.replace(/\/$/, '')}`;
-    return `${cleanBase}${cleanPath}`;
-  }
+
+  // 1. If running in browser and pathname starts with /max, use /max
   if (typeof window !== 'undefined' && window.location.pathname.startsWith('/max')) {
     return `/max${cleanPath}`;
   }
-  return cleanPath;
+
+  // 2. Sanitize environment variables (strip quotes)
+  const rawBase =
+    process.env.NEXT_PUBLIC_BASE_PATH ||
+    process.env.BASE_PATH ||
+    '/max';
+  const cleaned = rawBase.replace(/^["']+|["']+$/g, '').trim();
+
+  if (cleaned && cleaned !== '/') {
+    const withSlash = cleaned.startsWith('/') ? cleaned : `/${cleaned}`;
+    return `${withSlash.replace(/\/+$/, '')}${cleanPath}`;
+  }
+
+  return `/max${cleanPath}`;
 }
 
 export default function LogsPage() {
@@ -45,16 +77,33 @@ export default function LogsPage() {
   const [status, setStatus] = useState<BotStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
+  const [testText, setTestText] = useState('саммари 10');
+  const [showTestModal, setShowTestModal] = useState(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
   // Poll for logs and status
   useEffect(() => {
     const fetchStatusAndLogs = async () => {
       try {
-        const [statusRes, logsRes] = await Promise.all([
-          fetch(getApiUrl('/api/bot/status')),
-          fetch(getApiUrl('/api/bot/logs')),
-        ]);
+        const primaryStatusUrl = getApiUrl('/api/bot/status');
+        let statusRes = await fetch(primaryStatusUrl);
+        if (!statusRes.ok && statusRes.status === 404) {
+          const fallbackUrl = primaryStatusUrl.startsWith('/max')
+            ? '/api/bot/status'
+            : '/max/api/bot/status';
+          const fallbackRes = await fetch(fallbackUrl);
+          if (fallbackRes.ok) statusRes = fallbackRes;
+        }
+
+        const primaryLogsUrl = getApiUrl('/api/bot/logs');
+        let logsRes = await fetch(primaryLogsUrl);
+        if (!logsRes.ok && logsRes.status === 404) {
+          const fallbackUrl = primaryLogsUrl.startsWith('/max')
+            ? '/api/bot/logs'
+            : '/max/api/bot/logs';
+          const fallbackRes = await fetch(fallbackUrl);
+          if (fallbackRes.ok) logsRes = fallbackRes;
+        }
 
         if (statusRes.ok) {
           const statusData = await statusRes.json();
@@ -80,13 +129,25 @@ export default function LogsPage() {
     }
   }, [logs, autoScroll]);
 
-  const handleAction = async (action: 'start' | 'stop' | 'clear' | 'check') => {
+  const handleAction = async (
+    action:
+      | 'start'
+      | 'stop'
+      | 'clear'
+      | 'check'
+      | 'check_subscriptions'
+      | 'register_webhook'
+      | 'delete_webhook'
+      | 'test_webhook'
+      | 'sync_production_logs',
+    extra?: Record<string, unknown>
+  ) => {
     setLoading(true);
     try {
       const res = await fetch(getApiUrl('/api/bot/control'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ action, ...extra }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -121,6 +182,8 @@ export default function LogsPage() {
     }
   };
 
+  const activeSub = status?.subscriptions && status.subscriptions.length > 0 ? status.subscriptions[0] : null;
+
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col font-sans selection:bg-zinc-800 selection:text-white">
       {/* Header bar */}
@@ -144,7 +207,7 @@ export default function LogsPage() {
               )}
             </h1>
             <p className="text-xs text-zinc-400">
-              Host: <span className="font-mono text-zinc-300">https://platform-api2.max.ru</span> • Webhook: <span className="font-mono text-emerald-400">https://vivonline.ru/max/webhook/max</span>
+              Host: <span className="font-mono text-zinc-300">https://platform-api2.max.ru</span> • Webhook: <span className="font-mono text-emerald-400">{status?.webhookUrl || 'https://vivonline.ru/max/webhook/max'}</span>
             </p>
           </div>
         </div>
@@ -171,13 +234,46 @@ export default function LogsPage() {
             </button>
           )}
 
+          {/* Webhook API check */}
+          <button
+            onClick={() => handleAction('check_subscriptions')}
+            disabled={loading}
+            title="Проверить активные подписки Webhook в MAX API"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-blue-900/50 hover:bg-blue-800/70 text-blue-200 border border-blue-700/60 transition-colors disabled:opacity-50"
+          >
+            <Radio className="w-3.5 h-3.5 text-blue-400" />
+            Проверить Webhook (MAX)
+          </button>
+
+          {/* Test Webhook */}
+          <button
+            onClick={() => setShowTestModal(true)}
+            disabled={loading}
+            title="Отправить симулированное сообщение webhook"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-emerald-300 border border-emerald-800/60 transition-colors disabled:opacity-50"
+          >
+            <Send className="w-3.5 h-3.5" />
+            Тест Webhook
+          </button>
+
+          {/* Sync production logs from vivonline.ru */}
+          <button
+            onClick={() => handleAction('sync_production_logs')}
+            disabled={loading}
+            title="Загрузить недавние логи с сервера vivonline.ru"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 transition-colors disabled:opacity-50"
+          >
+            <ArrowDownToLine className="w-3.5 h-3.5" />
+            Логи vivonline.ru
+          </button>
+
           <button
             onClick={() => handleAction('check')}
             disabled={loading}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 transition-colors disabled:opacity-50"
           >
             <ShieldCheck className="w-3.5 h-3.5" />
-            Проверить GET /me
+            GET /me
           </button>
 
           <button
@@ -197,7 +293,11 @@ export default function LogsPage() {
         <div className="flex items-center gap-6 flex-wrap">
           <div className="flex items-center gap-2">
             <span className="text-zinc-500">MAX:</span>
-            {status?.hasToken ? (
+            {status === null ? (
+              <span className="text-zinc-400 font-mono inline-flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-zinc-500 animate-pulse" /> Проверка...
+              </span>
+            ) : status.hasToken ? (
               <span className="text-emerald-400 font-mono inline-flex items-center gap-1">
                 <CheckCircle2 className="w-3 h-3" /> MAX_BOT_TOKEN OK
               </span>
@@ -210,7 +310,11 @@ export default function LogsPage() {
 
           <div className="flex items-center gap-2">
             <span className="text-zinc-500">OpenAI:</span>
-            {status?.hasOpenAiKey ? (
+            {status === null ? (
+              <span className="text-zinc-400 font-mono inline-flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-zinc-500 animate-pulse" /> Проверка...
+              </span>
+            ) : status.hasOpenAiKey ? (
               <span className="text-emerald-400 font-mono inline-flex items-center gap-1">
                 <CheckCircle2 className="w-3 h-3" /> OPENAI_API_KEY OK
               </span>
@@ -222,17 +326,25 @@ export default function LogsPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-zinc-500">Webhook:</span>
+            <span className="text-zinc-500">Webhook Эндпоинт:</span>
+            <span className="text-emerald-400 font-mono inline-flex items-center gap-1" title={status?.webhookUrl || '/max/webhook/max'}>
+              <CheckCircle2 className="w-3 h-3" /> 200 OK готов
+            </span>
             {status?.hasWebhookSecret ? (
-              <span className="text-emerald-400 font-mono inline-flex items-center gap-1" title={status?.webhookUrl || '/max/webhook/max'}>
-                <CheckCircle2 className="w-3 h-3" /> SECRET OK
-              </span>
+              <span className="text-zinc-400 font-mono text-[11px]">(Секрет включен)</span>
             ) : (
-              <span className="text-amber-400 font-mono inline-flex items-center gap-1" title="MAX_WEBHOOK_SECRET не задан">
-                <AlertTriangle className="w-3 h-3" /> Secret не задан
-              </span>
+              <span className="text-zinc-500 font-mono text-[11px]">(Секрет отключен)</span>
             )}
           </div>
+
+          {activeSub && (
+            <div className="flex items-center gap-2">
+              <span className="text-zinc-500">MAX Подписка:</span>
+              <span className="text-blue-400 font-mono text-[11px] bg-blue-950/60 px-2 py-0.5 rounded border border-blue-800">
+                {activeSub.url}
+              </span>
+            </div>
+          )}
 
           {status?.botInfo && (
             <div className="flex items-center gap-2">
@@ -276,7 +388,7 @@ export default function LogsPage() {
           {logs.length === 0 ? (
             <div className="text-zinc-500 flex flex-col items-center justify-center h-full gap-2">
               <Terminal className="w-8 h-8 opacity-40" />
-              <p>Логи пусты. Нажмите «Запустить Long Polling» или отправьте сообщение боту в MAX.</p>
+              <p>Логи пусты. Нажмите «Запустить Long Polling», «Тест Webhook» или отправьте команду боту в MAX.</p>
               {!status?.hasToken && (
                 <p className="text-amber-400/80 text-[11px]">
                   * Убедитесь, что переменная <span className="font-bold">MAX_BOT_TOKEN</span> задана в .env или в окружении.
@@ -327,6 +439,59 @@ export default function LogsPage() {
           <div ref={logsEndRef} />
         </div>
       </main>
+
+      {/* Modal for Webhook testing */}
+      {showTestModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-lg max-w-md w-full p-6 flex flex-col gap-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <h3 className="text-sm font-semibold text-zinc-100 flex items-center gap-2">
+                <Send className="w-4 h-4 text-emerald-400" />
+                Тестирование входящего Webhook
+              </h3>
+              <button
+                onClick={() => setShowTestModal(false)}
+                className="text-zinc-400 hover:text-zinc-200"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-zinc-400">
+              Это действие сымитирует доставку вебхука <code className="text-emerald-400">message_created</code> в приложение, запустит чтение истории, вызов OpenAI gpt-5.4-mini и отправку саммари в чат MAX.
+            </p>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs text-zinc-300 font-medium">Текст команды:</label>
+              <input
+                type="text"
+                value={testText}
+                onChange={(e) => setTestText(e.target.value)}
+                placeholder="саммари 10"
+                className="w-full bg-zinc-950 border border-zinc-700 rounded px-3 py-2 text-xs text-zinc-100 font-mono focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800">
+              <button
+                onClick={() => setShowTestModal(false)}
+                className="px-3 py-1.5 rounded text-xs text-zinc-400 hover:text-zinc-200"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={async () => {
+                  setShowTestModal(false);
+                  await handleAction('test_webhook', { text: testText });
+                }}
+                className="px-4 py-1.5 rounded text-xs font-medium bg-emerald-600 hover:bg-emerald-500 text-white transition-colors"
+              >
+                Отправить тест
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
