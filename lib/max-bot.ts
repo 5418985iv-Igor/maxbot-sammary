@@ -294,6 +294,11 @@ export class MaxBotService {
       hasOpenAiKey: Boolean(
         process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.trim().length > 0
       ),
+      hasWebhookSecret: Boolean(
+        process.env.MAX_WEBHOOK_SECRET && process.env.MAX_WEBHOOK_SECRET.trim().length > 0
+      ),
+      webhookUrl:
+        process.env.MAX_WEBHOOK_URL || 'https://vivonline.ru/max/webhook/max',
       botInfo: this.botInfo,
       marker: this.marker,
       logCount: this.logs.length,
@@ -994,16 +999,25 @@ export class MaxBotService {
   }
 
   /**
-   * Process individual update event
+   * Process individual update event (used by both Long Polling and Webhook)
    */
-  private handleUpdate(update: MaxUpdate): void {
-    const updateType = update.update_type || 'unknown_event';
+  public handleUpdate(
+    update: MaxUpdate,
+    options?: { isWebhook?: boolean }
+  ): void {
+    const updateType =
+      update.update_type ||
+      (update as Record<string, unknown>).event_type ||
+      (update as Record<string, unknown>).type ||
+      'unknown_event';
 
     // Extract details according to MAX Bot API spec
     const rawChatId =
       update.message?.recipient?.chat_id ??
       update.chat_id ??
-      (update as Record<string, unknown>).recipient_chat_id;
+      (update as Record<string, unknown>).recipient_chat_id ??
+      (update.message as Record<string, unknown> | undefined)?.chat_id ??
+      ((update as Record<string, unknown>).recipient as Record<string, unknown> | undefined)?.chat_id;
 
     const chatId: string | number =
       typeof rawChatId === 'string' || typeof rawChatId === 'number'
@@ -1015,11 +1029,17 @@ export class MaxBotService {
     const senderId = senderObj?.user_id ?? senderObj?.id ?? '';
     const senderStr = senderId ? `${senderName} (ID: ${senderId})` : senderName;
 
-    const messageText = update.message?.body?.text ?? '—';
+    const msgBody = update.message?.body as Record<string, unknown> | undefined;
+    const messageText =
+      (msgBody?.text as string) ??
+      (update.message?.text as string) ??
+      ((update as Record<string, unknown>).text as string) ??
+      '—';
 
     // Required readable log format for incoming event
+    const sourcePrefix = options?.isWebhook ? '[Webhook MAX]' : '[Событие MAX]';
     const summaryMsg =
-      `[Событие MAX] Тип: ${updateType} | Chat ID: ${chatId} | Отправитель: ${senderStr} | Текст: "${messageText}"`;
+      `${sourcePrefix} Тип: ${updateType} | Chat ID: ${chatId} | Отправитель: ${senderStr} | Текст: "${messageText}"`;
 
     if (updateType === 'message_created') {
       this.addLog('event', summaryMsg, update);
@@ -1042,7 +1062,7 @@ export class MaxBotService {
       );
 
       if (cmdInfo && cmdInfo.isCommand) {
-        // Run summary handler asynchronously without blocking polling
+        // Run summary handler asynchronously without blocking polling or webhook response
         this.handleSummaryRequest(
           rawChatId,
           cmdInfo.requestedCount,

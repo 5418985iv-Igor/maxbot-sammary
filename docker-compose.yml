@@ -18,3 +18,4 @@ services:
       - HOSTNAME=0.0.0.0
       - BASE_PATH=${BASE_PATH:-/max}
       - NEXT_PUBLIC_BASE_PATH=${NEXT_PUBLIC_BASE_PATH:-/max}
+      - MAX_WEBHOOK_URL=${MAX_WEBHOOK_URL:-https://vivonline.ru/max/webhook/max}

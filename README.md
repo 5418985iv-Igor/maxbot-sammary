@@ -89,9 +89,11 @@ npm run dev
 ```bash
 cp .env.example .env
 # Заполните MAX_BOT_TOKEN, MAX_WEBHOOK_SECRET, OPENAI_API_KEY
-# Для работы по адресу https://vivonline.ru/max задайте BASE_PATH:
+# Для работы по адресу https://vivonline.ru/max задайте BASE_PATH и MAX_WEBHOOK_URL:
 BASE_PATH=/max
 NEXT_PUBLIC_BASE_PATH=/max
+MAX_WEBHOOK_URL=https://vivonline.ru/max/webhook/max
+MAX_WEBHOOK_SECRET=ваш_секретный_ключ
 ```
 
 2. Сборка и запуск контейнера:
@@ -115,11 +117,24 @@ location /max {
 }
 ```
 
-4. Проверка статуса сервиса:
+4. Проверка статуса сервиса и Webhook:
 ```bash
 # Проверка логов контейнера
 docker compose logs -f maxbot-sammary
 
 # Проверка API статуса бота
 curl http://127.0.0.1:3001/max/api/bot/status
+
+# Проверка Webhook локально (HTTP 200 {"ok":true})
+curl -i -X POST http://127.0.0.1:3001/max/webhook/max \
+  -H "Content-Type: application/json" \
+  -H "X-Max-Bot-Api-Secret: ваш_секретный_ключ" \
+  -d '{"update_type":"message_created","message":{"body":{"text":"тест"},"recipient":{"chat_id":123},"sender":{"name":"Тест"}}}'
+
+# Проверка Webhook через Nginx / HTTPS (HTTP 200 {"ok":true})
+curl -i -X POST https://vivonline.ru/max/webhook/max \
+  -H "Content-Type: application/json" \
+  -H "X-Max-Bot-Api-Secret: ваш_секретный_ключ" \
+  -d '{"update_type":"message_created","message":{"body":{"text":"тест"},"recipient":{"chat_id":123},"sender":{"name":"Тест"}}}'
 ```
+

@@ -14,6 +14,9 @@ export async function GET() {
         isRunning: false,
         hasToken: Boolean(process.env.MAX_BOT_TOKEN),
         hasOpenAiKey: Boolean(process.env.OPENAI_API_KEY),
+        hasWebhookSecret: Boolean(process.env.MAX_WEBHOOK_SECRET),
+        webhookUrl:
+          process.env.MAX_WEBHOOK_URL || 'https://vivonline.ru/max/webhook/max',
         botInfo: null,
         marker: null,
         logCount: 0,

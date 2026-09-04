@@ -15,6 +15,8 @@ interface BotStatus {
   isRunning: boolean;
   hasToken: boolean;
   hasOpenAiKey?: boolean;
+  hasWebhookSecret?: boolean;
+  webhookUrl?: string;
   botInfo: {
     user_id?: number | string;
     id?: number | string;
@@ -129,20 +131,20 @@ export default function LogsPage() {
           </div>
           <div>
             <h1 className="text-base font-semibold text-zinc-100 flex items-center gap-2">
-              MAX Bot API Server (Long Polling)
+              MAX Bot API Server
               {status?.isRunning ? (
                 <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs bg-emerald-950/80 text-emerald-400 border border-emerald-700">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                  Active
+                  Active (Long Polling)
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs bg-zinc-800 text-zinc-400 border border-zinc-700">
-                  Stopped
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs bg-emerald-950/40 text-emerald-300 border border-emerald-800/60">
+                  Webhook Ready
                 </span>
               )}
             </h1>
             <p className="text-xs text-zinc-400">
-              Host: <span className="font-mono text-zinc-300">https://platform-api2.max.ru</span> • Endpoint: <span className="font-mono text-zinc-300">GET /updates</span>
+              Host: <span className="font-mono text-zinc-300">https://platform-api2.max.ru</span> • Webhook: <span className="font-mono text-emerald-400">https://vivonline.ru/max/webhook/max</span>
             </p>
           </div>
         </div>
@@ -215,6 +217,19 @@ export default function LogsPage() {
             ) : (
               <span className="text-amber-400 font-mono inline-flex items-center gap-1">
                 <AlertTriangle className="w-3 h-3" /> OPENAI_API_KEY не задан
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-zinc-500">Webhook:</span>
+            {status?.hasWebhookSecret ? (
+              <span className="text-emerald-400 font-mono inline-flex items-center gap-1" title={status?.webhookUrl || '/max/webhook/max'}>
+                <CheckCircle2 className="w-3 h-3" /> SECRET OK
+              </span>
+            ) : (
+              <span className="text-amber-400 font-mono inline-flex items-center gap-1" title="MAX_WEBHOOK_SECRET не задан">
+                <AlertTriangle className="w-3 h-3" /> Secret не задан
               </span>
             )}
           </div>

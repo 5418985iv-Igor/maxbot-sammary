@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { maxBotService } from '@/lib/max-bot';
+import { maxBotService, MaxUpdate } from '@/lib/max-bot';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,42 +29,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const updateType =
-    (event.update_type as string) ||
-    (event.event_type as string) ||
-    (event.type as string) ||
-    '';
-
-  if (updateType === 'message_created') {
-    const msg = event.message as Record<string, unknown> | undefined;
-    const recipient = msg?.recipient as Record<string, unknown> | undefined;
-    const rawChatId =
-      recipient?.chat_id ??
-      event.chat_id ??
-      event.recipient_chat_id ??
-      (event.recipient as Record<string, unknown> | undefined)?.chat_id;
-
-    const chatId: string | number =
-      typeof rawChatId === 'string' || typeof rawChatId === 'number'
-        ? rawChatId
-        : 'неизвестно';
-
-    const msgBody = msg?.body as Record<string, unknown> | undefined;
-    const messageText =
-      (msgBody?.text as string) ??
-      (msg?.text as string) ??
-      (event.text as string) ??
-      '—';
-
-    const logMessage = `[Webhook MAX] [Событие: message_created] Chat ID: ${chatId} | Текст: "${messageText}"`;
-    maxBotService.addLog('event', logMessage, event);
-  } else {
-    maxBotService.addLog(
-      'info',
-      `[Webhook MAX] Получено событие: ${updateType || 'неизвестный тип'}`,
-      event
-    );
-  }
+  // Delegate incoming update/message_created to existing bot message handler (non-blocking)
+  maxBotService.handleUpdate(event as unknown as MaxUpdate, { isWebhook: true });
 
   return NextResponse.json({ ok: true });
 }
+
+export async function GET() {
+  return NextResponse.json({
+    ok: true,
+    endpoint: '/max/webhook/max',
+    method: 'POST',
+    secretHeader: 'X-Max-Bot-Api-Secret',
+  });
+}
+
