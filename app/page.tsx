@@ -15,6 +15,7 @@ import {
   Send,
   ArrowDownToLine,
   Link2,
+  Unlink,
 } from 'lucide-react';
 
 interface LogEntry {
@@ -234,16 +235,38 @@ export default function LogsPage() {
             </button>
           )}
 
-          {/* Webhook API check */}
+          {/* Webhook Actions */}
           <button
             onClick={() => handleAction('check_subscriptions')}
             disabled={loading}
             title="Проверить активные подписки Webhook в MAX API"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-blue-900/50 hover:bg-blue-800/70 text-blue-200 border border-blue-700/60 transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-blue-950/70 hover:bg-blue-900 text-blue-200 border border-blue-700/60 transition-colors disabled:opacity-50"
           >
             <Radio className="w-3.5 h-3.5 text-blue-400" />
-            Проверить Webhook (MAX)
+            Подписки MAX
           </button>
+
+          <button
+            onClick={() => handleAction('register_webhook')}
+            disabled={loading}
+            title="Зарегистрировать / обновить Webhook подписку в MAX API (POST /subscriptions)"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-emerald-950/70 hover:bg-emerald-900 text-emerald-200 border border-emerald-700/60 transition-colors disabled:opacity-50"
+          >
+            <Link2 className="w-3.5 h-3.5 text-emerald-400" />
+            Связать Webhook
+          </button>
+
+          {activeSub && (
+            <button
+              onClick={() => handleAction('delete_webhook')}
+              disabled={loading}
+              title="Удалить подписку Webhook из MAX API для возврата на Long Polling"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-rose-950/70 hover:bg-rose-900 text-rose-200 border border-rose-700/60 transition-colors disabled:opacity-50"
+            >
+              <Unlink className="w-3.5 h-3.5 text-rose-400" />
+              Отвязать Webhook
+            </button>
+          )}
 
           {/* Test Webhook */}
           <button
@@ -331,9 +354,11 @@ export default function LogsPage() {
               <CheckCircle2 className="w-3 h-3" /> 200 OK готов
             </span>
             {status?.hasWebhookSecret ? (
-              <span className="text-zinc-400 font-mono text-[11px]">(Секрет включен)</span>
+              <span className="text-zinc-400 font-mono text-[11px]" title="Секрет задан в .env; события от OneMe Bot API принимаются и проверяются">
+                (Секрет задан в .env + поддержка OneMe Bot API)
+              </span>
             ) : (
-              <span className="text-zinc-500 font-mono text-[11px]">(Секрет отключен)</span>
+              <span className="text-zinc-500 font-mono text-[11px]">(Прием без секрета)</span>
             )}
           </div>
 

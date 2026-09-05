@@ -7,11 +7,6 @@
  *   npm run bot
  */
 
-// Allow TLS connections with Russian Trusted Root CA certificates used by platform-api2.max.ru
-if (!process.env.NODE_TLS_REJECT_UNAUTHORIZED) {
-  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-}
-
 import { MaxBotService } from './lib/max-bot';
 
 console.log('====================================================');

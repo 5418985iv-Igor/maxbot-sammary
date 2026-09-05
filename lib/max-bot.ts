@@ -1,10 +1,5 @@
 import OpenAI from 'openai';
 
-// Allow TLS connections with Russian Trusted Root CA certificates used by platform-api2.max.ru
-if (typeof process !== 'undefined' && process.env && !process.env.NODE_TLS_REJECT_UNAUTHORIZED) {
-  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-}
-
 export const BOT_USER_ID = 232063193;
 
 export interface BotInfo {
@@ -508,12 +503,39 @@ export class MaxBotService {
       `Регистрация подписки Webhook в MAX API (POST /subscriptions)... URL: ${webhookUrl}`
     );
 
+    // If subscription already exists in MAX API for this URL, delete it first to ensure clean state
+    try {
+      const delEndpoint = `${this.baseUrl}/subscriptions?url=${encodeURIComponent(webhookUrl)}`;
+      await fetch(delEndpoint, {
+        method: 'DELETE',
+        headers: {
+          Authorization: token.trim(),
+          'User-Agent': 'MaxBot-Webhook-Manager/1.0',
+        },
+      });
+    } catch {
+      // Ignore cleanup error if subscription didn't exist
+    }
+
     const body: Record<string, unknown> = {
       url: webhookUrl,
       update_types: ['message_created'],
     };
+
     if (secretToUse && secretToUse.trim()) {
-      body.secret = secretToUse.trim();
+      const trimmedSecret = secretToUse.trim();
+      if (trimmedSecret.length < 5 || trimmedSecret.length > 256) {
+        this.addLog(
+          'warn',
+          `[Webhook MAX] Длина секрета (${trimmedSecret.length} симв.) не соответствует спецификации MAX API (5..256). Секрет не передан в POST /subscriptions во избежание ошибки 400.`
+        );
+      } else {
+        body.secret = trimmedSecret;
+        this.addLog(
+          'info',
+          `[Webhook MAX] В подписку добавлен секрет (${trimmedSecret.length} симв.). MAX API будет присылать заголовок X-Max-Bot-Api-Secret.`
+        );
+      }
     }
 
     let response: Response;
@@ -747,6 +769,14 @@ export class MaxBotService {
     requestedCount: number,
     commandText: string
   ): Promise<void> {
+    if (!this.botInfo && (this.token || process.env.MAX_BOT_TOKEN)) {
+      try {
+        await this.checkMe();
+      } catch {
+        // Continue with default ID
+      }
+    }
+
     const activeBotUserId = String(
       process.env.BOT_USER_ID ||
         this.botInfo?.user_id ||

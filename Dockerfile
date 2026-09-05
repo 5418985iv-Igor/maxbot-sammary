@@ -2,7 +2,7 @@
 
 # 1. Install dependencies
 FROM node:20-alpine AS deps
-RUN apk add --no-cache libc6-compat
+RUN apk add --no-cache libc6-compat ca-certificates
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
@@ -33,7 +33,7 @@ ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 ENV BASE_PATH=/max
 ENV NEXT_PUBLIC_BASE_PATH=/max
-ENV NODE_TLS_REJECT_UNAUTHORIZED=0
+ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
