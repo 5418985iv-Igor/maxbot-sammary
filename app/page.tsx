@@ -77,7 +77,7 @@ export default function LogsPage() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [status, setStatus] = useState<BotStatus | null>(null);
   const [loading, setLoading] = useState(false);
-  const [autoScroll, setAutoScroll] = useState(true);
+  const [autoScroll, setAutoScroll] = useState(false);
   const [testText, setTestText] = useState('саммари 10');
   const [showTestModal, setShowTestModal] = useState(false);
   const logsEndRef = useRef<HTMLDivElement>(null);

@@ -1393,3 +1393,12 @@ export const maxBotService =
 if (process.env.NODE_ENV !== 'production') {
   globalForBot.maxBotServiceInstance = maxBotService;
 }
+
+if (typeof window === 'undefined' && process.env.NEXT_PHASE !== 'phase-production-build') {
+  const isBuild = process.env.npm_lifecycle_event === 'build' || process.argv.some(arg => arg.includes('build'));
+  if (!isBuild) {
+    maxBotService.start().catch((err) => {
+      console.error('[MAX-BOT] Automatic start error:', err);
+    });
+  }
+}
