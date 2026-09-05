@@ -11,11 +11,13 @@ RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
 # 2. Rebuild the source code
 FROM node:20-alpine AS builder
 WORKDIR /app
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 ARG BASE_PATH=/max
 ARG NEXT_PUBLIC_BASE_PATH=/max
+
 ENV BASE_PATH=${BASE_PATH}
 ENV NEXT_PUBLIC_BASE_PATH=${NEXT_PUBLIC_BASE_PATH}
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -27,12 +29,22 @@ RUN npm run build
 FROM node:20-alpine AS runner
 WORKDIR /app
 
+# Сертификаты Минцифры РФ для API MAX
+RUN apk add --no-cache ca-certificates
+
+COPY certs/russian_trusted_root_ca.crt /usr/local/share/ca-certificates/russian_trusted_root_ca.crt
+COPY certs/russian_trusted_sub_ca.crt /usr/local/share/ca-certificates/russian_trusted_sub_ca.crt
+
+RUN update-ca-certificates
+
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 ENV BASE_PATH=/max
 ENV NEXT_PUBLIC_BASE_PATH=/max
+
+# Используем системное хранилище сертификатов, включая сертификаты Минцифры РФ
 ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
 
 RUN addgroup --system --gid 1001 nodejs
