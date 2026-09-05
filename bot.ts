@@ -7,7 +7,11 @@
  *   npm run bot
  */
 
+import { configureTrustedCerts } from './lib/tls-setup';
+configureTrustedCerts();
+
 import { MaxBotService } from './lib/max-bot';
+
 
 console.log('====================================================');
 console.log('       MAX Bot API Long Polling Server Runner       ');

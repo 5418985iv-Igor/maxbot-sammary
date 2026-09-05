@@ -1,4 +1,7 @@
 import OpenAI from 'openai';
+import { configureTrustedCerts } from './tls-setup';
+configureTrustedCerts();
+
 
 export const BOT_USER_ID = 232063193;
 

@@ -3,6 +3,8 @@ export async function register() {
     const isBuild = process.env.npm_lifecycle_event === 'build' || process.argv.some(arg => arg.includes('build'));
     if (!isBuild) {
       try {
+        const { configureTrustedCerts } = await import('@/lib/tls-setup');
+        configureTrustedCerts();
         const { maxBotService } = await import('@/lib/max-bot');
         await maxBotService.start();
       } catch (err) {
@@ -11,3 +13,4 @@ export async function register() {
     }
   }
 }
+
